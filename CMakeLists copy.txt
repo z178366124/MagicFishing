@@ -1,0 +1,106 @@
+cmake_minimum_required(VERSION 3.16)
+project(MagicFishing LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+# 设置版本信息
+set(PROJECT_VERSION_MAJOR 1)
+set(PROJECT_VERSION_MINOR 0)
+set(PROJECT_VERSION_PATCH 0)
+
+# 终端显示配置
+if (WIN32)
+  set(CMAKE_WIN32_EXECUTABLE TRUE)
+endif()
+
+# Qt 安装路径可能要自己指定
+set(Qt6_DIR "D:/QT/6.10.0/mingw_64/lib/cmake/Qt6")
+
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core)
+
+# 添加头文件目录
+include_directories(${CMAKE_SOURCE_DIR})
+
+# 添加源文件
+set(SOURCES
+    # main.cc
+    main.cpp
+    WaterBase.hpp
+    tray.hpp
+    WorkTimeWindow.hpp
+    WorkTimeWindow.hpp
+    TimelineWidget.hpp
+    utils/WindowApi.hpp
+    SettingWidget.hpp
+    app.rc  # 添加资源文件
+)
+
+
+add_executable(MagicFishing ${SOURCES} resources.qrc)
+target_link_libraries(MagicFishing PRIVATE Qt6::Widgets Qt6::Core)
+
+
+# 设置应用程序图标
+if(WIN32)
+    set_target_properties(MagicFishing PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        LINK_FLAGS "-Wl,--subsystem,windows"
+    )
+endif()
+
+
+
+
+# 安装配置
+install(TARGETS MagicFishing
+    RUNTIME DESTINATION bin
+    COMPONENT applications)
+
+# # 添加 Qt 依赖库的安装规则
+# if(WIN32)
+#     # 获取 Qt 依赖库
+#     get_target_property(_qmake_executable Qt6::qmake IMPORTED_LOCATION)
+#     get_filename_component(_qt_bin_dir "${_qmake_executable}" DIRECTORY)
+    
+#     # 使用 windeployqt 复制 Qt 依赖
+#     add_custom_command(TARGET MagicFishing POST_BUILD
+#         COMMAND "${_qt_bin_dir}/windeployqt.exe"
+#                 --verbose 0
+#                 --no-compiler-runtime
+#                 --no-translations
+#                 --no-system-d3d-compiler
+#                 \"$<TARGET_FILE:MagicFishing>\"
+#         COMMENT "Deploying Qt dependencies..."
+#     )
+    
+#     # 确保 windeployqt 复制的文件被包含在安装包中
+#     install(DIRECTORY "${CMAKE_BINARY_DIR}/bin/"
+#             DESTINATION bin
+#             COMPONENT applications
+#             FILES_MATCHING PATTERN "*.dll"
+#                           PATTERN "*.pdb"
+#                           PATTERN "platforms/*"
+#                           PATTERN "styles/*")
+# endif()
+
+# # 添加CPack配置
+# include(InstallRequiredSystemLibraries)
+# set(CPACK_GENERATOR "NSIS")
+# set(CPACK_NSIS_PACKAGE_NAME "MagicFishing")
+# set(CPACK_NSIS_DISPLAY_NAME "My Qt Application")
+# set(CPACK_NSIS_PACKAGE_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+# set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/icon.ico")  # 如果有图标的话
+# set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/icon.ico")  # 如果有图标的话
+# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+# set(CPACK_NSIS_MODIFY_PATH ON)
+# set(CPACK_PACKAGE_INSTALL_DIRECTORY "MagicFishing")
+# set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+# set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+# set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+# set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+
+# include(CPack)

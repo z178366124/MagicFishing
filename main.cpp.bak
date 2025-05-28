@@ -1,0 +1,198 @@
+#include <QApplication>
+#include <QWidget>
+#include <QPainter>
+#include <QTimer>
+#include <QScreen>
+#include <QInputDialog>
+#include <QTime>
+#include <QDialog>
+#include <QTimeEdit>
+#include <QVBoxLayout>
+#include <QPushButton>
+#include <QLabel>
+#include <QDoubleSpinBox>
+#include <QSpinBox>
+#include <QSystemTrayIcon>
+#include <QMenu>
+#include <QAction>
+#include <QCloseEvent>
+#include <QIcon>
+#include <QStyle>
+
+class WatermarkWindow : public QWidget {
+public:
+    WatermarkWindow(double salary, int workHours, QTime startTime) {
+        this->salary = salary;
+        this->workHours = workHours;
+        this->startTime = startTime;
+        setWindowFlags(Qt::FramelessWindowHint |        // 无边框
+                       Qt::WindowStaysOnTopHint |
+                       Qt::Tool |
+                       Qt::WindowTransparentForInput |      // 允许鼠标穿透，不阻挡下层应用
+                       Qt::X11BypassWindowManagerHint);  // Linux 下防止被 WM 管控
+
+        setAttribute(Qt::WA_TranslucentBackground);     // 背景透明
+        setAttribute(Qt::WA_ShowWithoutActivating);     // 保持窗口在顶层
+
+        // 设置全屏大小（多屏幕可遍历 QGuiApplication::screens()）
+        QRect screenGeometry = QGuiApplication::primaryScreen()->geometry();
+        resize(screenGeometry.size());
+        move(screenGeometry.topLeft());
+        
+        initTimer();  // 初始化并启动定时器
+        initTrayIcon();  // 初始化系统托盘
+        show();
+    }
+
+    ~WatermarkWindow() {
+        if (trayIcon) {
+            delete trayIcon;
+        }
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        // 使用渐变色
+        QLinearGradient gradient(0, 0, width(), height());
+        gradient.setColorAt(0, QColor(255, 0, 255, 128));  // 紫色
+        gradient.setColorAt(0.5, QColor(0, 255, 255, 128));  // 青色
+        gradient.setColorAt(1, QColor(255, 255, 0, 128));  // 黄色
+        painter.setPen(QPen(QBrush(gradient), 2));  // 使用渐变笔刷
+        painter.setFont(QFont("Arial", 30, QFont::Bold));
+
+        // 计算当前时间工作了多少秒
+        QTime currentTime = QTime::currentTime();
+        // int secondsWorked = QTime(18,0).secsTo(currentTime); // 从9点开始计算
+        int secondsWorked = startTime.secsTo(currentTime);
+        
+        if(secondsWorked > 0 && secondsWorked < workHours*3600) { // 工作8小时
+            // 计算当前赚到的钱
+            double earnedMoney = (salary / workHours / 3600.0) * secondsWorked;
+            QString text = QString("今日已赚: ¥%1").arg(earnedMoney, 0, 'f', 2);
+            painter.drawText(rect(), Qt::AlignCenter, text);
+        } else {
+            painter.drawText(rect(), Qt::AlignCenter, "非工作时间");
+        }
+        qDebug() << "secondsWorked:" << secondsWorked;
+    }
+
+    void closeEvent(QCloseEvent *event) override {
+        if (trayIcon && trayIcon->isVisible()) {
+            hide();
+            event->ignore();
+        } else {
+            event->accept();
+        }
+    }
+
+private:
+    double salary;
+    int workHours;
+    QTime startTime;
+    QTimer* timer;
+    QSystemTrayIcon* trayIcon;
+
+    void initTimer() {
+        timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, static_cast<void (QWidget::*)()>(&QWidget::update));
+        timer->start(1000); // 每秒更新一次
+    }
+
+    void initTrayIcon() {
+        trayIcon = new QSystemTrayIcon(this);
+        // 使用 Qt 资源系统加载图标
+        trayIcon->setIcon(QIcon(":/icon.ico"));
+        // trayIcon->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));    
+        if (!trayIcon->isSystemTrayAvailable()) {
+            qDebug() << "系统托盘不可用";
+            return;
+        }
+
+        if (!trayIcon->icon().isNull()) {
+            qDebug() << "图标加载成功";
+        } else {
+            qDebug() << "图标加载失败";
+            exit(1);
+        }
+
+        QMenu* trayMenu = new QMenu();
+        QAction* showAction = new QAction("显示", this);
+        QAction* hideAction = new QAction("隐藏", this);
+        QAction* quitAction = new QAction("退出", this);
+
+        connect(showAction, &QAction::triggered, this, &QWidget::show);
+        connect(hideAction, &QAction::triggered, this, &QWidget::hide);
+        connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
+
+        trayMenu->addAction(showAction);
+        trayMenu->addAction(hideAction);
+        trayMenu->addSeparator();
+        trayMenu->addAction(quitAction);
+
+        trayIcon->setContextMenu(trayMenu);
+        trayIcon->show();
+
+        connect(trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+            if (reason == QSystemTrayIcon::DoubleClick) {
+                if (isVisible()) {
+                    hide();
+                } else {
+                    show();
+                }
+            }
+        });
+    }
+};
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    
+    // 创建主对话框
+    QDialog mainDialog;
+    mainDialog.setWindowTitle("工资计算器设置");
+    QVBoxLayout* mainLayout = new QVBoxLayout(&mainDialog);
+
+    // 创建日薪输入框
+    QDoubleSpinBox* salarySpinBox = new QDoubleSpinBox(&mainDialog);
+    salarySpinBox->setRange(0, 100000);
+    salarySpinBox->setValue(1000.0);
+    salarySpinBox->setDecimals(2);
+    salarySpinBox->setPrefix("¥");
+    mainLayout->addWidget(new QLabel("请输入您的日薪:"));
+    mainLayout->addWidget(salarySpinBox);
+
+    // 创建工作时长输入框
+    QSpinBox* hoursSpinBox = new QSpinBox(&mainDialog);
+    hoursSpinBox->setRange(1, 24);
+    hoursSpinBox->setValue(8);
+    hoursSpinBox->setSuffix(" 小时");
+    mainLayout->addWidget(new QLabel("请输入每天工作时长:"));
+    mainLayout->addWidget(hoursSpinBox);
+
+    // 创建时间选择框
+    QTimeEdit* timeEdit = new QTimeEdit(&mainDialog);
+    timeEdit->setTime(QTime(9, 0));  // 默认早上9点
+    mainLayout->addWidget(new QLabel("请选择上班时间:"));
+    mainLayout->addWidget(timeEdit);
+
+    // 添加确定按钮
+    QPushButton* okButton = new QPushButton("确定", &mainDialog);
+    mainLayout->addWidget(okButton);
+
+    double salary = 0;
+    int workHours = 0;
+    QTime startTime;
+
+    QObject::connect(okButton, &QPushButton::clicked, [&]() {
+        salary = salarySpinBox->value();
+        workHours = hoursSpinBox->value();
+        startTime = timeEdit->time();
+        mainDialog.accept();
+    });
+
+    if (mainDialog.exec() != QDialog::Accepted) return 1;
+        
+    WatermarkWindow watermark(salary, workHours, startTime);
+    return app.exec();
+}
